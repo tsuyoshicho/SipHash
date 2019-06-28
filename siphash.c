@@ -44,22 +44,63 @@
 #define SIPROUND                                                               \
     do {                                                                       \
         v0 += v1;                                                              \
+      TRACE;                                                                   \
         v1 = ROTL(v1, 13);                                                     \
+      TRACE;                                                                   \
         v1 ^= v0;                                                              \
+      TRACE;                                                                   \
         v0 = ROTL(v0, 32);                                                     \
+      TRACE;                                                                   \
         v2 += v3;                                                              \
+      TRACE;                                                                   \
         v3 = ROTL(v3, 16);                                                     \
+      TRACE;                                                                   \
         v3 ^= v2;                                                              \
+      TRACE;                                                                   \
         v0 += v3;                                                              \
+      TRACE;                                                                   \
         v3 = ROTL(v3, 21);                                                     \
+      TRACE;                                                                   \
         v3 ^= v0;                                                              \
+      TRACE;                                                                   \
         v2 += v1;                                                              \
+      TRACE;                                                                   \
         v1 = ROTL(v1, 17);                                                     \
+      TRACE;                                                                   \
         v1 ^= v2;                                                              \
+      TRACE;                                                                   \
         v2 = ROTL(v2, 32);                                                     \
+      TRACE;                                                                   \
     } while (0)
 
 #ifdef DEBUG
+#define PARAM_DUMP()                                                           \
+    do{                                                                        \
+        printf("(%3d) k0 %08x %08x\n", (int)inlen, (uint32_t)(k0 >> 32),       \
+               (uint32_t)k0);                                                  \
+        printf("(%3d) k1 %08x %08x\n", (int)inlen, (uint32_t)(k1 >> 32),       \
+               (uint32_t)k1);                                                  \
+        printf("(%3d) left %d\n", (int)inlen, left);                           \
+    } while(0)
+#define INDEX_DUMP()                                                           \
+    do{                                                                        \
+        printf("(%3d) index %d\n", (int)inlen, (int)(end - in));               \
+    } while(0)
+#define INTER_DUMP()                                                           \
+    do{                                                                        \
+        printf("(%3d) m %08x %08x\n", (int)inlen, (uint32_t)(m >> 32),         \
+               (uint32_t)m);                                                   \
+        printf("(%3d) b %08x %08x\n", (int)inlen, (uint32_t)(b >> 32),         \
+               (uint32_t)b);                                                   \
+    } while(0)
+#define OUTPUT_DUMP(_max)                                                      \
+  do{                                                                          \
+    printf("(%3d) out", (int)inlen);                                           \
+    for (i = 0; i < (_max);i++){                                               \
+      printf(" %02x", out[i]);                                                 \
+    }                                                                          \
+    printf("\n");                                                              \
+  } while(0)
 #define TRACE                                                                  \
     do {                                                                       \
         printf("(%3d) v0 %08x %08x\n", (int)inlen, (uint32_t)(v0 >> 32),       \
@@ -73,6 +114,10 @@
     } while (0)
 #else
 #define TRACE
+#define PARAM_DUMP()      (void)0
+#define INDEX_DUMP()      (void)0
+#define INTER_DUMP()      (void)0
+#define OUTPUT_DUMP(_max) (void)0
 #endif
 
 int siphash(const uint8_t *in, const size_t inlen, const uint8_t *k,
@@ -95,6 +140,7 @@ int siphash(const uint8_t *in, const size_t inlen, const uint8_t *k,
     v1 ^= k1;
     v0 ^= k0;
 
+    PARAM_DUMP();
     if (outlen == 16)
         v1 ^= 0xee;
 
@@ -102,9 +148,15 @@ int siphash(const uint8_t *in, const size_t inlen, const uint8_t *k,
         m = U8TO64_LE(in);
         v3 ^= m;
 
+        INDEX_DUMP();
+        INTER_DUMP();
         TRACE;
         for (i = 0; i < cROUNDS; ++i)
-            SIPROUND;
+        {
+          SIPROUND;
+          INTER_DUMP();
+          TRACE;
+        }
 
         v0 ^= m;
     }
@@ -131,9 +183,14 @@ int siphash(const uint8_t *in, const size_t inlen, const uint8_t *k,
 
     v3 ^= b;
 
+    INTER_DUMP();
     TRACE;
     for (i = 0; i < cROUNDS; ++i)
-        SIPROUND;
+    {
+      SIPROUND;
+      INTER_DUMP();
+      TRACE;
+    }
 
     v0 ^= b;
 
@@ -142,24 +199,38 @@ int siphash(const uint8_t *in, const size_t inlen, const uint8_t *k,
     else
         v2 ^= 0xff;
 
+    INTER_DUMP();
     TRACE;
     for (i = 0; i < dROUNDS; ++i)
-        SIPROUND;
+    {
+      SIPROUND;
+      INTER_DUMP();
+      TRACE;
+    }
 
     b = v0 ^ v1 ^ v2 ^ v3;
     U64TO8_LE(out, b);
+
+    OUTPUT_DUMP(8);
 
     if (outlen == 8)
         return 0;
 
     v1 ^= 0xdd;
 
+    INTER_DUMP();
     TRACE;
     for (i = 0; i < dROUNDS; ++i)
-        SIPROUND;
+    {
+      SIPROUND;
+      INTER_DUMP();
+      TRACE;
+    }
 
     b = v0 ^ v1 ^ v2 ^ v3;
     U64TO8_LE(out + 8, b);
+
+    OUTPUT_DUMP(16);
 
     return 0;
 }
